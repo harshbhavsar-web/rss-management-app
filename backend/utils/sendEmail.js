@@ -1,16 +1,9 @@
-const brevo = require('@getbrevo/brevo');
-
 const sendEmail = async (options) => {
   try {
-    let apiInstance = new brevo.TransactionalEmailsApi();
+    const apiKey = process.env.BREVO_API_KEY;
+    const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <onboarding@brevo.dev>';
 
-    // Set API key properly according to latest Node.js SDK
-    apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-
-    let sendSmtpEmail = new brevo.SendSmtpEmail();
-
-    const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <[EMAIL_ADDRESS]>';
-
+    // Parse the from address (e.g., "RSS Sardar Nagar <email@domain.com>" or just "email@domain.com")
     let senderName = 'RSS Sardar Nagar';
     let senderEmail = fromAddress;
 
@@ -20,15 +13,34 @@ const sendEmail = async (options) => {
       senderEmail = match[2].trim();
     }
 
-    sendSmtpEmail.sender = { name: senderName, email: senderEmail };
-    sendSmtpEmail.to = [{ email: options.email }];
-    sendSmtpEmail.subject = options.subject;
-    sendSmtpEmail.textContent = options.message;
+    const payload = {
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: options.email }],
+      subject: options.subject,
+      textContent: options.message,
+    };
 
-    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Brevo HTTP API Error:', response.status, errorText);
+      return false;
+    }
+
+    // Success
+    // const data = await response.json();
     return true;
   } catch (error) {
-    console.error('Error sending email via Brevo: ', error.response ? error.response.text : error.message);
+    console.error('Error sending email via Brevo HTTP API: ', error.message);
     return false;
   }
 };
