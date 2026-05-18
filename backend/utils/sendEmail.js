@@ -1,26 +1,35 @@
-const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+const brevo = require('@getbrevo/brevo');
 
 const sendEmail = async (options) => {
   try {
-    const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <onboarding@resend.dev>';
+    let defaultClient = brevo.ApiClient.instance;
+    let apiKey = defaultClient.authentications['api-key'];
+    apiKey.apiKey = process.env.BREVO_API_KEY;
 
-    const { data, error } = await resend.emails.send({
-      from: fromAddress,
-      to: options.email,
-      subject: options.subject,
-      text: options.message,
-    });
+    let apiInstance = new brevo.TransactionalEmailsApi();
+    let sendSmtpEmail = new brevo.SendSmtpEmail();
 
-    if (error) {
-      console.error('Resend API Error sending email: ', error.message || error);
-      return false;
+    const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <onboarding@brevo.dev>';
+    
+    // Parse the from address (e.g., "RSS Sardar Nagar <email@domain.com>" or just "email@domain.com")
+    let senderName = 'RSS Sardar Nagar';
+    let senderEmail = fromAddress;
+    
+    const match = fromAddress.match(/(.*)<(.*)>/);
+    if (match) {
+      senderName = match[1].trim();
+      senderEmail = match[2].trim();
     }
 
+    sendSmtpEmail.sender = { name: senderName, email: senderEmail };
+    sendSmtpEmail.to = [{ email: options.email }];
+    sendSmtpEmail.subject = options.subject;
+    sendSmtpEmail.textContent = options.message;
+
+    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
     return true;
   } catch (error) {
-    console.error('Error sending email via Resend: ', error.message);
+    console.error('Error sending email via Brevo: ', error.response ? error.response.text : error.message);
     return false;
   }
 };
