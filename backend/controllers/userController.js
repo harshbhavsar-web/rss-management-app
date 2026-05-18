@@ -7,9 +7,13 @@ const sendSMS = require('../utils/sendSMS');
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 exports.registerUser = async (req, res) => {
+  console.log('[registerUser] Route hit');
   const { name, identifier, password } = req.body;
 
   try {
+    if (!identifier) {
+      return res.status(400).json({ message: 'Email or phone identifier is required.' });
+    }
     const isEmail = identifier.includes('@');
     const query = isEmail ? { email: identifier } : { phone: identifier };
 
@@ -25,6 +29,7 @@ exports.registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const otp = generateOTP();
+    console.log('[registerUser] OTP generated successfully');
     const otpType = isEmail ? 'email' : 'phone';
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
 
@@ -47,16 +52,19 @@ exports.registerUser = async (req, res) => {
       user = new User(userData);
       await user.save();
     }
+    console.log(`[registerUser] OTP saved to database for user: ${user._id}`);
 
     // Send OTP asynchronously
     let sent = true; // Optimistic success
     if (otpType === 'email') {
+      console.log('[registerUser] Email send attempt initiated in background');
       sendEmail({
         email: user.email,
         subject: 'RSS Sardar Nagar - Verification OTP',
         message: `Your OTP for verification is: ${otp}. It is valid for 10 minutes.`,
       }).catch(err => console.error('Background email error:', err.message));
     } else {
+      console.log('[registerUser] SMS send attempt initiated in background');
       const smsMessage = `Welcome to RSS! Your mobile verification OTP is ${otp}. Valid for 10 minutes.`;
       sendSMS(user.phone, smsMessage).catch(err => console.error('Background SMS error:', err.message));
     }
@@ -73,8 +81,12 @@ exports.registerUser = async (req, res) => {
 };
 
 exports.resendOTP = async (req, res) => {
+  console.log('[resendOTP] Route hit');
   const { userId } = req.body;
   try {
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required.' });
+    }
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -83,17 +95,21 @@ exports.resendOTP = async (req, res) => {
     }
 
     const otp = generateOTP();
+    console.log('[resendOTP] OTP generated successfully');
     user.otp = otp;
     user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
     await user.save();
+    console.log(`[resendOTP] OTP saved to database for user: ${user._id}`);
 
     if (user.otpType === 'email') {
+      console.log('[resendOTP] Email send attempt initiated in background');
       sendEmail({
         email: user.email,
         subject: 'RSS Sardar Nagar - New OTP',
         message: `Your new OTP for verification is: ${otp}.`,
       }).catch(err => console.error('Background email error:', err.message));
     } else {
+      console.log('[resendOTP] SMS send attempt initiated in background');
       sendSMS(user.phone, `New OTP for RSS verification is ${otp}.`).catch(err => console.error('Background SMS error:', err.message));
     }
 
@@ -166,19 +182,26 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.forgotPassword = async (req, res) => {
+  console.log('[forgotPassword] Route hit');
   const { email } = req.body;
 
   try {
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: 'No user registered with this email address.' });
     }
 
     const otp = generateOTP();
+    console.log('[forgotPassword] OTP generated successfully');
     user.resetOtp = otp;
     user.resetOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
     await user.save();
+    console.log(`[forgotPassword] OTP saved to database for user: ${user._id}`);
 
+    console.log('[forgotPassword] Email send attempt initiated in background');
     sendEmail({
       email: user.email,
       subject: 'RSS Sardar Nagar - Password Reset OTP',
@@ -195,6 +218,9 @@ exports.resetPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
   try {
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'Email, OTP, and new password are required.' });
+    }
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
@@ -221,57 +247,6 @@ exports.resetPassword = async (req, res) => {
     await user.save();
 
     res.json({ message: 'Password reset successful. You can now log in.' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-exports.forgotPassword = async (req, res) => {
-  const { email } = req.body;
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'No account found with this email' });
-
-    const resetOtp = generateOTP();
-    user.resetOtp = resetOtp;
-    user.resetOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
-    await user.save();
-
-    sendEmail({
-      email: user.email,
-      subject: 'RSS Sardar Nagar - Password Reset OTP',
-      message: `Your OTP for password reset is: ${resetOtp}. It is valid for 10 minutes.`,
-    }).catch(err => console.error('Background email error:', err.message));
-
-    res.json({ message: 'Password reset OTP sent to your email' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-exports.resetPassword = async (req, res) => {
-  const { email, otp, newPassword } = req.body;
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    if (user.resetOtp !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-
-    if (user.resetOtpExpiry < new Date()) {
-      return res.status(400).json({ message: 'OTP has expired' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-    user.password = hashedPassword;
-    user.resetOtp = undefined;
-    user.resetOtpExpiry = undefined;
-    await user.save();
-
-    res.json({ message: 'Password reset successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
