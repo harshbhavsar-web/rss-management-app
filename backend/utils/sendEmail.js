@@ -10,11 +10,11 @@ const sendEmail = async (options) => {
     let sendSmtpEmail = new brevo.SendSmtpEmail();
 
     const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <onboarding@brevo.dev>';
-    
+
     // Parse the from address (e.g., "RSS Sardar Nagar <email@domain.com>" or just "email@domain.com")
     let senderName = 'RSS Sardar Nagar';
     let senderEmail = fromAddress;
-    
+
     const match = fromAddress.match(/(.*)<(.*)>/);
     if (match) {
       senderName = match[1].trim();
