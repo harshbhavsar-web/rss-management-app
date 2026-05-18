@@ -1,35 +1,26 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async (options) => {
   try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465, // Using port 465 for secure connection
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      connectionTimeout: 60000, // 60 seconds
-      greetingTimeout: 60000,
-      socketTimeout: 60000,
-      family: 4, // Prefer IPv4 to avoid ENETUNREACH on Render
-    });
+    const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <onboarding@resend.dev>';
 
-    const mailOptions = {
-      from: `"RSS Sardar Nagar" <${process.env.EMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
       to: options.email,
       subject: options.subject,
       text: options.message,
-    };
+    });
 
-    // We do not wait for this if we want fire-and-forget, but since this is an async function, 
-    // the controller will call it without await.
-    const info = await transporter.sendMail(mailOptions);
-    // console.log(`Email sent: ${info.messageId}`); // Remove log to clean up production logs
+    if (error) {
+      console.error('Resend API Error sending email: ', error.message || error);
+      return false;
+    }
+
     return true;
   } catch (error) {
-    console.error('Error sending email: ', error.message); // Only log the message to avoid huge stack traces
+    console.error('Error sending email via Resend: ', error.message);
     return false;
   }
 };
