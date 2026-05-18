@@ -9,9 +9,8 @@ const sendEmail = async (options) => {
     let apiInstance = new brevo.TransactionalEmailsApi();
     let sendSmtpEmail = new brevo.SendSmtpEmail();
 
-    const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <onboarding@brevo.dev>';
+    const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <[EMAIL_ADDRESS]>';
 
-    // Parse the from address (e.g., "RSS Sardar Nagar <email@domain.com>" or just "email@domain.com")
     let senderName = 'RSS Sardar Nagar';
     let senderEmail = fromAddress;
 
