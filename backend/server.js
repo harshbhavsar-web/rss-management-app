@@ -1,3 +1,6 @@
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -6,12 +9,12 @@ const bcrypt = require('bcryptjs');
 const connectDB = require('./config/db');
 const User = require('./models/User');
 
-// Load environment variables
+// Load env vars
 dotenv.config();
 
 const app = express();
 
-/* ================== 🔥 CORS CONFIG ================== */
+/* ================== CORS CONFIG ================== */
 app.use(
   cors({
     origin: [
@@ -21,13 +24,13 @@ app.use(
     credentials: true,
   })
 );
-/* ==================================================== */
+/* ================================================== */
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-/* ================== 🔥 CREATE ADMIN FUNCTION ================== */
+/* ================== CREATE ADMIN FUNCTION ================== */
 const createAdmin = async () => {
   try {
     const adminEmail = process.env.ADMIN_EMAIL;
@@ -35,9 +38,7 @@ const createAdmin = async () => {
     const adminName = process.env.ADMIN_NAME || 'Admin';
 
     if (!adminEmail || !adminPassword) {
-      console.log(
-        '⚠️ Missing ADMIN_EMAIL or ADMIN_PASSWORD in .env file. Skipping admin creation.'
-      );
+      console.log('⚠️ Missing ADMIN_EMAIL or ADMIN_PASSWORD in .env file. Skipping admin creation.');
       return;
     }
 
@@ -55,20 +56,14 @@ const createAdmin = async () => {
 
       console.log(`✅ Admin (${adminEmail}) created successfully`);
     } else {
-      const isMatch = await bcrypt.compare(
-        adminPassword,
-        adminExists.password
-      );
+      const isMatch = await bcrypt.compare(adminPassword, adminExists.password);
 
       if (adminExists.role !== 'admin' || !isMatch) {
         adminExists.role = 'admin';
         adminExists.password = await bcrypt.hash(adminPassword, 10);
-
         await adminExists.save();
 
-        console.log(
-          `✅ Elevated existing user (${adminEmail}) to Admin and synced password.`
-        );
+        console.log(`✅ Elevated existing user (${adminEmail}) to Admin and synced password.`);
       } else {
         console.log(`⚡ Admin (${adminEmail}) already exists`);
       }
@@ -92,17 +87,13 @@ app.use('/api/attendance', require('./routes/attendanceRoutes'));
 
 const PORT = process.env.PORT || 5000;
 
-/* ================== 🔥 START SERVER ================== */
+/* ================== START SERVER ================== */
 const startServer = async () => {
   try {
-    // Connect Database
     await connectDB();
 
-    // Start Server
     app.listen(PORT, async () => {
       console.log(`🚀 Server running on port ${PORT}`);
-
-      // Auto create admin
       await createAdmin();
     });
   } catch (error) {
@@ -112,4 +103,4 @@ const startServer = async () => {
 };
 
 startServer();
-/* ==================================================== */
+/* ================================================== */
