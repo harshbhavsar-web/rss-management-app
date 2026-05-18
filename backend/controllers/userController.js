@@ -12,7 +12,7 @@ exports.registerUser = async (req, res) => {
   try {
     const isEmail = identifier.includes('@');
     const query = isEmail ? { email: identifier } : { phone: identifier };
-    
+
     let userExists = await User.findOne(query);
     if (userExists) {
       if (userExists.isVerified) {
@@ -27,47 +27,44 @@ exports.registerUser = async (req, res) => {
     const otp = generateOTP();
     const otpType = isEmail ? 'email' : 'phone';
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
-    
-    console.log(`[DEBUG] Generated New OTP - ${otpType}: ${otp}`);
 
     let user;
     if (userExists) {
-       userExists.name = name;
-       userExists.password = hashedPassword;
-       userExists.otp = otp;
-       userExists.otpType = otpType;
-       userExists.otpExpiry = otpExpiry;
-       await userExists.save();
-       user = userExists;
+      userExists.name = name;
+      userExists.password = hashedPassword;
+      userExists.otp = otp;
+      userExists.otpType = otpType;
+      userExists.otpExpiry = otpExpiry;
+      await userExists.save();
+      user = userExists;
     } else {
-       const userData = {
-         name, password: hashedPassword, otp, otpType, otpExpiry
-       };
-       if (isEmail) userData.email = identifier;
-       else userData.phone = identifier;
-       
-       user = new User(userData);
-       await user.save();
+      const userData = {
+        name, password: hashedPassword, otp, otpType, otpExpiry
+      };
+      if (isEmail) userData.email = identifier;
+      else userData.phone = identifier;
+
+      user = new User(userData);
+      await user.save();
     }
 
-    // Send OTP
-    let sent = false;
+    // Send OTP asynchronously
+    let sent = true; // Optimistic success
     if (otpType === 'email') {
-      sent = await sendEmail({
+      sendEmail({
         email: user.email,
         subject: 'RSS Sardar Nagar - Verification OTP',
         message: `Your OTP for verification is: ${otp}. It is valid for 10 minutes.`,
-      });
+      }).catch(err => console.error('Background email error:', err.message));
     } else {
       const smsMessage = `Welcome to RSS! Your mobile verification OTP is ${otp}. Valid for 10 minutes.`;
-      sent = await sendSMS(user.phone, smsMessage);
+      sendSMS(user.phone, smsMessage).catch(err => console.error('Background SMS error:', err.message));
     }
 
     res.status(201).json({
       message: `Registration initiated. OTP sent successfully to ${otpType}.`,
       userId: user._id,
-      sent,
-      testOtp: otp
+      sent
     });
 
   } catch (error) {
@@ -86,24 +83,22 @@ exports.resendOTP = async (req, res) => {
     }
 
     const otp = generateOTP();
-    console.log(`[DEBUG] Re-generated OTP - ${user.otpType}: ${otp}`);
     user.otp = otp;
     user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
     await user.save();
 
     if (user.otpType === 'email') {
-      await sendEmail({
+      sendEmail({
         email: user.email,
         subject: 'RSS Sardar Nagar - New OTP',
         message: `Your new OTP for verification is: ${otp}.`,
-      });
+      }).catch(err => console.error('Background email error:', err.message));
     } else {
-       await sendSMS(user.phone, `New OTP for RSS verification is ${otp}.`);
+      sendSMS(user.phone, `New OTP for RSS verification is ${otp}.`).catch(err => console.error('Background SMS error:', err.message));
     }
 
-    res.json({ 
-      message: 'New OTP sent successfully.',
-      testOtp: otp
+    res.json({
+      message: 'New OTP sent successfully.'
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -118,7 +113,7 @@ exports.verifyOTP = async (req, res) => {
 
     if (user.isVerified) return res.status(400).json({ message: 'User already verified' });
     if (user.otpExpiry < new Date()) return res.status(400).json({ message: 'OTP has expired' });
-    
+
     if (user.otp !== otp) {
       return res.status(400).json({ message: 'Invalid OTP' });
     }
@@ -151,13 +146,13 @@ exports.loginUser = async (req, res) => {
     if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    
+
     res.json({
       token,
-      user: { 
-        id: user._id, 
-        name: user.name, 
-        email: user.email, 
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
         phone: user.phone,
         role: user.role,
         shakha: user.shakha,
@@ -184,11 +179,11 @@ exports.forgotPassword = async (req, res) => {
     user.resetOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
     await user.save();
 
-    await sendEmail({
+    sendEmail({
       email: user.email,
       subject: 'RSS Sardar Nagar - Password Reset OTP',
       message: `Your OTP to reset password is: ${otp}. It is valid for 10 minutes.`,
-    });
+    }).catch(err => console.error('Background email error:', err.message));
 
     res.json({ message: 'Password reset OTP sent to your email.' });
   } catch (error) {
@@ -242,11 +237,11 @@ exports.forgotPassword = async (req, res) => {
     user.resetOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
     await user.save();
 
-    await sendEmail({
+    sendEmail({
       email: user.email,
       subject: 'RSS Sardar Nagar - Password Reset OTP',
       message: `Your OTP for password reset is: ${resetOtp}. It is valid for 10 minutes.`,
-    });
+    }).catch(err => console.error('Background email error:', err.message));
 
     res.json({ message: 'Password reset OTP sent to your email' });
   } catch (error) {
@@ -263,7 +258,7 @@ exports.resetPassword = async (req, res) => {
     if (user.resetOtp !== otp) {
       return res.status(400).json({ message: 'Invalid OTP' });
     }
-    
+
     if (user.resetOtpExpiry < new Date()) {
       return res.status(400).json({ message: 'OTP has expired' });
     }
@@ -341,11 +336,11 @@ exports.onboardUser = async (req, res) => {
       user.shakha = shakhaId;
       await user.save();
     }
-    
+
     // For "other", we do nothing on the User model here because 
     // the frontend will redirect them to the Join form, 
     // where submission updates the user.
-    
+
     res.json({ message: 'Onboarding completed', user });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -368,11 +363,11 @@ exports.updateUserAdmin = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     if (nagar !== undefined) user.nagar = nagar;
 
     if (role !== undefined) user.role = role;
-    
+
     const updatedUser = await user.save();
     const populatedUser = await User.findById(updatedUser._id).select('-password -otp -resetOtp').populate('shakha', 'name location');
     res.json(populatedUser);
