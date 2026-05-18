@@ -2,11 +2,11 @@ const brevo = require('@getbrevo/brevo');
 
 const sendEmail = async (options) => {
   try {
-    let defaultClient = brevo.ApiClient.instance;
-    let apiKey = defaultClient.authentications['api-key'];
-    apiKey.apiKey = process.env.BREVO_API_KEY;
-
     let apiInstance = new brevo.TransactionalEmailsApi();
+
+    // Set API key properly according to latest Node.js SDK
+    apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+
     let sendSmtpEmail = new brevo.SendSmtpEmail();
 
     const fromAddress = process.env.EMAIL_FROM || 'RSS Sardar Nagar <[EMAIL_ADDRESS]>';
