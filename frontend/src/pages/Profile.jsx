@@ -141,8 +141,9 @@ const Profile = () => {
   };
 
   // Attendance Calculations
-  const totalMeetings = attendance.length;
-  const presentCount = attendance.filter(a => a.status === 'present').length;
+  const completedMeetings = attendance.filter(a => a.meetingStatus === 'completed');
+  const totalMeetings = completedMeetings.length;
+  const presentCount = completedMeetings.filter(a => a.status === 'present').length;
   const absentCount = totalMeetings - presentCount;
   const attendancePercentage = totalMeetings > 0 ? Math.round((presentCount / totalMeetings) * 100) : 0;
 

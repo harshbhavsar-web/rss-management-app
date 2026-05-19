@@ -28,8 +28,9 @@ const Attendance = () => {
   };
 
   const safeHistory = Array.isArray(history) ? history : [];
-  const total = safeHistory.length;
-  const present = safeHistory.filter(h => h.status === 'present').length;
+  const completedMeetings = safeHistory.filter(h => h.meetingStatus === 'completed');
+  const total = completedMeetings.length;
+  const present = completedMeetings.filter(h => h.status === 'present').length;
   const absent = total - present;
   const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
 
@@ -91,7 +92,11 @@ const Attendance = () => {
                   </div>
                 </div>
                 <div className="shrink-0 ml-3">
-                  {record.status === 'present' ? (
+                  {record.meetingStatus === 'pending' ? (
+                    <div className="flex items-center space-x-1 bg-yellow-50 text-yellow-700 px-2.5 py-1 rounded-lg">
+                      <span className="text-xs font-bold uppercase tracking-wide">Pending</span>
+                    </div>
+                  ) : record.status === 'present' ? (
                     <div className="flex items-center space-x-1 bg-green-50 text-green-700 px-2.5 py-1 rounded-lg">
                       <CheckCircle className="w-4 h-4" />
                       <span className="text-xs font-bold uppercase tracking-wide">Present</span>

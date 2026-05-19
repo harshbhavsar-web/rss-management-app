@@ -74,6 +74,9 @@ exports.updateMeetingAttendance = async (req, res) => {
     attendance.records = processedRecords;
     await attendance.save();
     
+    // Mark the meeting as completed since attendance has been saved
+    await Meeting.findByIdAndUpdate(meetingId, { status: 'completed' });
+    
     res.json({ message: 'Attendance saved successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -116,6 +119,7 @@ exports.getUserAttendance = async (req, res) => {
         meetingTitle: att.meeting ? (att.meeting.displayTitle || att.meeting.title || 'Nagar Baithak') : 'Meeting',
         date: att.meeting?.date,
         time: att.meeting?.time,
+        meetingStatus: att.meeting?.status || 'pending',
         status: userRecord ? userRecord.status : 'absent'
       };
     });

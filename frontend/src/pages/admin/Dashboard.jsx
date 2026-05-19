@@ -336,9 +336,15 @@ const Dashboard = () => {
                          </p>
                        </div>
                        <div className="ml-3 shrink-0 flex flex-col items-end">
-                         <span className="text-xs font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-200 shadow-sm whitespace-nowrap">
-                           {item.attendancePercentage !== undefined ? `${item.attendancePercentage}% Present` : '0% Present'}
-                         </span>
+                         {item.status === 'pending' ? (
+                           <span className="text-xs font-bold text-yellow-700 bg-yellow-50 px-2.5 py-1 rounded-full border border-yellow-200 shadow-sm whitespace-nowrap">
+                             Pending
+                           </span>
+                         ) : (
+                           <span className="text-xs font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-200 shadow-sm whitespace-nowrap">
+                             {item.attendancePercentage !== undefined ? `${item.attendancePercentage}% Present` : '0% Present'}
+                           </span>
+                         )}
                        </div>
                     </div>
                     
