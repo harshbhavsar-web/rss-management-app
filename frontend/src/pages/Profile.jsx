@@ -137,7 +137,7 @@ const Profile = () => {
   const executeLogout = () => {
     localStorage.removeItem('userToken');
     localStorage.removeItem('adminToken');
-    window.location.href = '/login';
+    navigate('/signup');
   };
 
   // Attendance Calculations
