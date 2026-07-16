@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AuthPage from './pages/AuthPage';
@@ -25,6 +25,7 @@ import Attendance from './pages/Attendance';
 import AdminLayout from './layouts/AdminLayout';
 import AdminRoute from './components/AdminRoute';
 import AdminProfile from './pages/admin/AdminProfile';
+import ShakhaDashboard from './pages/ShakhaDashboard';
 
 // A wrapper component to handle conditional layout visibility
 const AppLayout = () => {
@@ -58,9 +59,10 @@ const AppLayout = () => {
           <Route path="/join" element={<ProtectedRoute><Join /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+          <Route path="/shakha-dashboard" element={<ProtectedRoute><ShakhaDashboard /></ProtectedRoute>} />
           
           {/* Admin Routes */}
-          <Route path="/admin/login" element={<Login />} />
+          <Route path="/admin/login" element={<Navigate to="/login" replace />} />
           <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="dashboard" element={<Dashboard />} />

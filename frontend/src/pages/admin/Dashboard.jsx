@@ -67,7 +67,7 @@ const Dashboard = () => {
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) {
-      navigate('/admin/login');
+      navigate('/login');
       return;
     }
     fetchData();
@@ -112,8 +112,11 @@ const Dashboard = () => {
   };
 
   const logout = () => {
+    localStorage.removeItem('userToken');
     localStorage.removeItem('adminToken');
-    navigate('/admin/login');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userOnboarded');
+    navigate('/login');
   };
 
   // CRUD Operations
@@ -197,7 +200,15 @@ const Dashboard = () => {
       if (modalType === 'event') endpoint = '/events';
       if (modalType === 'notification') endpoint = '/notifications';
       if (modalType === 'group') endpoint = '/groups';
-      if (modalType === 'user') endpoint = '/users';
+      if (modalType === 'user') {
+        endpoint = '/users';
+        const finalRole = formData.role || 'user';
+        const finalShakha = formData.shakha;
+        if ((finalRole === 'karyvah' || finalRole === 'mukhya_shikshak') && !finalShakha) {
+          toast.error('Shakha assignment is mandatory for Karyvah and Mukhya Shikshak roles.');
+          return;
+        }
+      }
 
       let submitData = { ...formData };
       if (modalType === 'notification') {
@@ -790,10 +801,18 @@ const Dashboard = () => {
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Role</label>
             <select name="role" value={formData.role || 'user'} onChange={handleInputChange} className={inputClass}>
               <option value="user">User</option>
-              <option value="member">Member</option>
-              <option value="shikshak">Shikshak</option>
-              <option value="karyavah">Karyavah</option>
+              <option value="karyvah">Karyvah</option>
+              <option value="mukhya_shikshak">Mukhya Shikshak</option>
               <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Assigned Shakha</label>
+            <select name="shakha" value={formData.shakha || ''} onChange={handleInputChange} className={inputClass}>
+              <option value="">No Shakha (Select to assign)</option>
+              {data.shakhas && data.shakhas.map(s => (
+                <option key={s._id} value={s._id}>{s.name}</option>
+              ))}
             </select>
           </div>
           <div>

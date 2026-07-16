@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Meeting = require('../models/Meeting');
 const { isFutureDateTime, isExpired } = require('../utils/dateValidator');
 
@@ -33,10 +34,16 @@ exports.getMeetings = async (req, res) => {
       if (m.targetType === 'all') m.displayTitle = 'General Meeting';
       else if (m.targetType === 'nagar') m.displayTitle = `${m.targetValue} Baithak`;
       else if (m.targetType === 'shakha') {
-        const shakha = await Shakha.findById(m.targetValue);
+        let shakha = null;
+        if (m.targetValue && mongoose.Types.ObjectId.isValid(m.targetValue)) {
+          shakha = await Shakha.findById(m.targetValue);
+        }
         m.displayTitle = shakha ? `${shakha.name} Baithak` : 'Shakha Baithak';
       } else if (m.targetType === 'group') {
-        const group = await Group.findById(m.targetValue);
+        let group = null;
+        if (m.targetValue && mongoose.Types.ObjectId.isValid(m.targetValue)) {
+          group = await Group.findById(m.targetValue);
+        }
         m.displayTitle = group ? `${group.name} Meeting` : 'Group Meeting';
       } else {
         m.displayTitle = m.title || 'Nagar Baithak';
@@ -77,8 +84,29 @@ exports.createMeeting = async (req, res) => {
   if (!isFutureDateTime(date, time)) {
     return res.status(400).json({ message: 'Meeting date and time must be in the future.' });
   }
+
+  let finalShakhas = shakhas;
+  let finalTargetType = targetType;
+  let finalTargetValue = targetValue;
+
+  if (req.user.role !== 'admin') {
+    if (!req.user.shakha) {
+      return res.status(403).json({ message: 'Access denied: You must be assigned to a Shakha to create meetings.' });
+    }
+    finalShakhas = [req.user.shakha];
+    finalTargetType = 'shakha';
+    finalTargetValue = req.user.shakha.toString();
+  }
+
   try {
-    const newMeeting = new Meeting({ shakhas, date, time, location, targetType, targetValue });
+    const newMeeting = new Meeting({ 
+      shakhas: finalShakhas, 
+      date, 
+      time, 
+      location, 
+      targetType: finalTargetType, 
+      targetValue: finalTargetValue 
+    });
     await newMeeting.save();
     res.status(201).json(newMeeting);
   } catch (error) {
@@ -92,8 +120,28 @@ exports.updateMeeting = async (req, res) => {
     if (date && time && !isFutureDateTime(date, time)) {
       return res.status(400).json({ message: 'Meeting date and time must be in the future.' });
     }
+
+    const meeting = await Meeting.findById(req.params.id);
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
+    if (req.user.role !== 'admin') {
+      if (!req.user.shakha) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const isOwnShakha = (meeting.targetType === 'shakha' && meeting.targetValue === req.user.shakha.toString()) ||
+                          (meeting.shakhas && meeting.shakhas.some(s => s.toString() === req.user.shakha.toString()));
+
+      if (!isOwnShakha) {
+        return res.status(403).json({ message: 'Access denied: You can only update meetings for your assigned Shakha.' });
+      }
+
+      req.body.shakhas = [req.user.shakha];
+      req.body.targetType = 'shakha';
+      req.body.targetValue = req.user.shakha.toString();
+    }
+
     const updatedMeeting = await Meeting.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updatedMeeting) return res.status(404).json({ message: 'Meeting not found' });
     res.json(updatedMeeting);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -102,8 +150,23 @@ exports.updateMeeting = async (req, res) => {
 
 exports.deleteMeeting = async (req, res) => {
   try {
-    const deletedMeeting = await Meeting.findByIdAndDelete(req.params.id);
-    if (!deletedMeeting) return res.status(404).json({ message: 'Meeting not found' });
+    const meeting = await Meeting.findById(req.params.id);
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
+    if (req.user.role !== 'admin') {
+      if (!req.user.shakha) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const isOwnShakha = (meeting.targetType === 'shakha' && meeting.targetValue === req.user.shakha.toString()) ||
+                          (meeting.shakhas && meeting.shakhas.some(s => s.toString() === req.user.shakha.toString()));
+
+      if (!isOwnShakha) {
+        return res.status(403).json({ message: 'Access denied: You can only delete meetings for your assigned Shakha.' });
+      }
+    }
+
+    await Meeting.findByIdAndDelete(req.params.id);
     res.json({ message: 'Meeting deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });

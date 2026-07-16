@@ -9,6 +9,7 @@ const AdminProfile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState(null);
   
   // Form State
   const [name, setName] = useState('');
@@ -19,15 +20,21 @@ const AdminProfile = () => {
   }, []);
 
   const fetchProfile = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await api.get('/admin/profile');
       setProfile(res.data);
       setName(res.data.name || '');
-    } catch (error) {
-       if (error.response?.status === 401) {
+    } catch (err) {
+        if (err.response?.status === 401) {
+          localStorage.removeItem('userToken');
           localStorage.removeItem('adminToken');
-          navigate('/admin/login');
-       } else {
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('userOnboarded');
+          navigate('/login');
+        } else {
+          setError('Failed to load admin profile data. Please check your connection.');
           toast.error('Failed to load profile');
        }
     } finally {
@@ -55,15 +62,35 @@ const AdminProfile = () => {
 
   const executeLogout = () => {
     if (window.confirm("Are you sure you want to securely logout from the admin panel?")) {
+      localStorage.removeItem('userToken');
       localStorage.removeItem('adminToken');
-      navigate('/admin/login');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userOnboarded');
+      navigate('/login');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20 text-gray-500">
+      <div className="flex justify-center items-center py-20 text-gray-500">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mr-3"></div>
         Loading Admin Profile...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-3xl mx-auto py-10 px-4 text-center">
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 shadow-sm flex flex-col items-center max-w-md mx-auto">
+          <p className="text-red-700 font-semibold mb-4">{error}</p>
+          <button 
+            onClick={fetchProfile}
+            className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold shadow active:scale-95 transition-all"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

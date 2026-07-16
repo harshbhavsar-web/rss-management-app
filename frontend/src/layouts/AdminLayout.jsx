@@ -5,8 +5,11 @@ const AdminLayout = () => {
   const navigate = useNavigate();
 
   const logout = () => {
+    localStorage.removeItem('userToken');
     localStorage.removeItem('adminToken');
-    navigate('/admin/login');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userOnboarded');
+    navigate('/login');
   };
 
   return (

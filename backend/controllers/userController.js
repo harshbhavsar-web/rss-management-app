@@ -284,16 +284,8 @@ exports.updateUserProfile = async (req, res) => {
     }
 
     const updatedUser = await user.save();
-
-    res.json({
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      shakha: updatedUser.shakha,
-      profilePhoto: updatedUser.profilePhoto,
-      hasJoinRequest: updatedUser.hasJoinRequest
-    });
+    const populatedUser = await User.findById(updatedUser._id).select('-password').populate('shakha');
+    res.json(populatedUser);
   } catch (error) {
     res.status(500).json({ message: 'Server Error' });
   }
@@ -324,7 +316,14 @@ exports.onboardUser = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password -otp -resetOtp').populate('shakha', 'name location');
+    let query = {};
+    if (req.user && req.user.role !== 'admin') {
+      if (!req.user.shakha) {
+        return res.json([]);
+      }
+      query = { shakha: req.user.shakha };
+    }
+    const users = await User.find(query).select('-password -otp -resetOtp').populate('shakha', 'name location');
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -333,15 +332,22 @@ exports.getAllUsers = async (req, res) => {
 
 exports.updateUserAdmin = async (req, res) => {
   try {
-    const { nagar, role } = req.body;
+    const { nagar, role, shakha } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (nagar !== undefined) user.nagar = nagar;
+    const finalRole = role !== undefined ? role : user.role;
+    const finalShakha = shakha !== undefined ? (shakha === '' ? null : shakha) : user.shakha;
 
+    if ((finalRole === 'karyvah' || finalRole === 'mukhya_shikshak') && !finalShakha) {
+      return res.status(400).json({ message: 'Shakha assignment is mandatory for Karyvah and Mukhya Shikshak roles.' });
+    }
+
+    if (nagar !== undefined) user.nagar = nagar;
     if (role !== undefined) user.role = role;
+    if (shakha !== undefined) user.shakha = shakha === '' ? null : shakha;
 
     const updatedUser = await user.save();
     const populatedUser = await User.findById(updatedUser._id).select('-password -otp -resetOtp').populate('shakha', 'name location');

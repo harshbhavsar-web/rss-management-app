@@ -42,8 +42,30 @@ exports.createEvent = async (req, res) => {
   if (!isFutureDateTime(date, time)) {
     return res.status(400).json({ message: 'Event date and time must be in the future.' });
   }
+
+  let finalShakhas = shakhas;
+  let finalTargetType = targetType;
+  let finalTargetValue = targetValue;
+
+  if (req.user.role !== 'admin') {
+    if (!req.user.shakha) {
+      return res.status(403).json({ message: 'Access denied: You must be assigned to a Shakha to create events.' });
+    }
+    finalShakhas = [req.user.shakha];
+    finalTargetType = 'shakha';
+    finalTargetValue = req.user.shakha.toString();
+  }
+
   try {
-    const newEvent = new Event({ title, date, time, description, shakhas, targetType, targetValue });
+    const newEvent = new Event({ 
+      title, 
+      date, 
+      time, 
+      description, 
+      shakhas: finalShakhas, 
+      targetType: finalTargetType, 
+      targetValue: finalTargetValue 
+    });
     await newEvent.save();
     res.status(201).json(newEvent);
   } catch (error) {
@@ -57,8 +79,28 @@ exports.updateEvent = async (req, res) => {
     if (date && time && !isFutureDateTime(date, time)) {
       return res.status(400).json({ message: 'Event date and time must be in the future.' });
     }
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    if (req.user.role !== 'admin') {
+      if (!req.user.shakha) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const isOwnShakha = (event.targetType === 'shakha' && event.targetValue === req.user.shakha.toString()) ||
+                          (event.shakhas && event.shakhas.some(s => s.toString() === req.user.shakha.toString()));
+
+      if (!isOwnShakha) {
+        return res.status(403).json({ message: 'Access denied: You can only update events for your assigned Shakha.' });
+      }
+
+      req.body.shakhas = [req.user.shakha];
+      req.body.targetType = 'shakha';
+      req.body.targetValue = req.user.shakha.toString();
+    }
+
     const updatedEvent = await Event.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updatedEvent) return res.status(404).json({ message: 'Event not found' });
     res.json(updatedEvent);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -67,8 +109,23 @@ exports.updateEvent = async (req, res) => {
 
 exports.deleteEvent = async (req, res) => {
   try {
-    const deletedEvent = await Event.findByIdAndDelete(req.params.id);
-    if (!deletedEvent) return res.status(404).json({ message: 'Event not found' });
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    if (req.user.role !== 'admin') {
+      if (!req.user.shakha) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const isOwnShakha = (event.targetType === 'shakha' && event.targetValue === req.user.shakha.toString()) ||
+                          (event.shakhas && event.shakhas.some(s => s.toString() === req.user.shakha.toString()));
+
+      if (!isOwnShakha) {
+        return res.status(403).json({ message: 'Access denied: You can only delete events for your assigned Shakha.' });
+      }
+    }
+
+    await Event.findByIdAndDelete(req.params.id);
     res.json({ message: 'Event deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });

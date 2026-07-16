@@ -13,7 +13,12 @@ const ShakhaDetail = () => {
    const [shakha, setShakha] = useState(null);
    const [meetings, setMeetings] = useState([]);
    const [events, setEvents] = useState([]);
+   const [members, setMembers] = useState([]);
    const [loading, setLoading] = useState(true);
+
+   const userRole = localStorage.getItem('userRole');
+   const adminToken = localStorage.getItem('adminToken');
+   const isAuthorizedToViewMembers = adminToken || userRole === 'admin' || userRole === 'karyvah' || userRole === 'mukhya_shikshak';
 
    useEffect(() => {
       const fetchData = async () => {
@@ -21,16 +26,26 @@ const ShakhaDetail = () => {
             const shakhaRes = await api.get(`/shakhas/${id}`);
             setShakha(shakhaRes.data);
 
-            // Fetch meetings and events, then filter for this shakha
-            // In a real production app, we would have specific backend endpoints
-            // like /api/shakhas/:id/meetings, but for this demo filtering locally works.
             const [meetingRes, eventRes] = await Promise.all([
                api.get('/meetings'),
                api.get('/events')
             ]);
 
-            setMeetings(meetingRes.data.filter(m => m.shakhaId?._id === id || m.shakhaId === id));
-            setEvents(eventRes.data.filter(e => e.shakhaId?._id === id || e.shakhaId === id));
+            setMeetings(meetingRes.data.filter(m => m.shakhaId?._id === id || m.shakhaId === id || (m.shakhas && m.shakhas.some(s => s._id === id || s === id))));
+            setEvents(eventRes.data.filter(e => e.shakhaId?._id === id || e.shakhaId === id || (e.shakhas && e.shakhas.some(s => s._id === id || s === id))));
+
+            if (isAuthorizedToViewMembers) {
+               try {
+                  const membersRes = await api.get('/users');
+                  if (adminToken || userRole === 'admin') {
+                     setMembers(membersRes.data.filter(u => u.shakha?._id === id || u.shakha === id));
+                  } else {
+                     setMembers(membersRes.data);
+                  }
+               } catch (e) {
+                  console.error("Failed to load shakha members", e);
+               }
+            }
 
          } catch (error) {
             console.error('Error fetching details', error);
@@ -39,7 +54,7 @@ const ShakhaDetail = () => {
          }
       };
       fetchData();
-   }, [id]);
+   }, [id, isAuthorizedToViewMembers, adminToken, userRole]);
 
    if (loading) return <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-saffron-600 mx-auto"></div></div>;
    if (!shakha) return <div className="text-center py-20">Shakha not found.</div>;
@@ -118,6 +133,31 @@ const ShakhaDetail = () => {
                   <p className="text-[16px] text-gray-600 leading-relaxed whitespace-pre-line">
                      {shakha.description}
                   </p>
+               </div>
+            )}
+
+            {isAuthorizedToViewMembers && (
+               <div className="space-y-5">
+                  <h2 className="text-[22px] font-extrabold text-gray-900 tracking-tight px-1">Swayamsevaks (Members) ({members.length})</h2>
+                  {members.length > 0 ? (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {members.map(m => (
+                           <div key={m._id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-saffron-50 text-[#e65c00] flex items-center justify-center font-bold">
+                                 {m.name.charAt(0).toUpperCase()}
+                               </div>
+                               <div className="min-w-0 flex-1">
+                                  <p className="font-bold text-gray-900 text-sm truncate">{m.name}</p>
+                                  <p className="text-xs text-gray-500 truncate">{m.phone || m.email || 'No contact info'}</p>
+                               </div>
+                            </div>
+                         ))}
+                      </div>
+                   ) : (
+                      <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+                         <p className="text-[15px] font-bold text-gray-600">No Swayamsevaks registered in this Shakha</p>
+                      </div>
+                   )}
                </div>
             )}
 

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Attendance = require('../models/Attendance');
 const Meeting = require('../models/Meeting');
 const User = require('../models/User');
@@ -12,7 +13,10 @@ const getEligibleUsersForMeeting = async (meeting) => {
   } else if (meeting.targetType === 'shakha') {
     return await User.find({ shakha: meeting.targetValue }).select('_id');
   } else if (meeting.targetType === 'group') {
-    const group = await Group.findById(meeting.targetValue);
+    let group = null;
+    if (meeting.targetValue && mongoose.Types.ObjectId.isValid(meeting.targetValue)) {
+      group = await Group.findById(meeting.targetValue);
+    }
     if (!group) return [];
     return group.users.map(id => ({ _id: id }));
   }
@@ -24,14 +28,25 @@ exports.getMeetingAttendance = async (req, res) => {
   try {
     const { meetingId } = req.params;
     
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
+    if (req.user.role !== 'admin') {
+      if (!req.user.shakha) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const isOwnShakha = (meeting.targetType === 'shakha' && meeting.targetValue === req.user.shakha.toString()) ||
+                          (meeting.shakhas && meeting.shakhas.some(s => s.toString() === req.user.shakha.toString()));
+      if (!isOwnShakha) {
+        return res.status(403).json({ message: 'Access denied: You can only manage attendance for your assigned Shakha.' });
+      }
+    }
+
     // Check if attendance already exists
     let attendance = await Attendance.findOne({ meeting: meetingId }).populate('records.user', 'name email phone');
     
     // If not, generate dynamically
     if (!attendance) {
-      const meeting = await Meeting.findById(meetingId);
-      if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
-      
       const eligibleUsers = await getEligibleUsersForMeeting(meeting);
       
       const records = eligibleUsers.map(user => ({
@@ -60,6 +75,20 @@ exports.updateMeetingAttendance = async (req, res) => {
     const { meetingId } = req.params;
     const { records } = req.body; // Array of { user, status }
     
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
+    if (req.user.role !== 'admin') {
+      if (!req.user.shakha) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const isOwnShakha = (meeting.targetType === 'shakha' && meeting.targetValue === req.user.shakha.toString()) ||
+                          (meeting.shakhas && meeting.shakhas.some(s => s.toString() === req.user.shakha.toString()));
+      if (!isOwnShakha) {
+        return res.status(403).json({ message: 'Access denied: You can only manage attendance for your assigned Shakha.' });
+      }
+    }
+
     let attendance = await Attendance.findOne({ meeting: meetingId });
     if (!attendance) {
       return res.status(404).json({ message: 'Attendance record not found' });
@@ -90,21 +119,29 @@ exports.getUserAttendance = async (req, res) => {
     const attendances = await Attendance.find({ 'records.user': userId })
       .populate('meeting')
       .sort({ createdAt: -1 });
+
+    // Filter out orphan attendance records where meeting is null/deleted
+    const validAttendances = attendances.filter(att => att.meeting);
       
     const Shakha = require('../models/Shakha');
     const Group = require('../models/Group');
     
     // Resolve dynamic titles for each meeting
-    for (let att of attendances) {
-      if (!att.meeting) continue;
+    for (let att of validAttendances) {
       const m = att.meeting;
       if (m.targetType === 'all') m.displayTitle = 'General Meeting';
       else if (m.targetType === 'nagar') m.displayTitle = `${m.targetValue} Baithak`;
       else if (m.targetType === 'shakha') {
-        const shakha = await Shakha.findById(m.targetValue);
+        let shakha = null;
+        if (m.targetValue && mongoose.Types.ObjectId.isValid(m.targetValue)) {
+          shakha = await Shakha.findById(m.targetValue);
+        }
         m.displayTitle = shakha ? `${shakha.name} Baithak` : 'Shakha Baithak';
       } else if (m.targetType === 'group') {
-        const group = await Group.findById(m.targetValue);
+        let group = null;
+        if (m.targetValue && mongoose.Types.ObjectId.isValid(m.targetValue)) {
+          group = await Group.findById(m.targetValue);
+        }
         m.displayTitle = group ? `${group.name} Meeting` : 'Group Meeting';
       } else {
         m.displayTitle = m.title || 'Nagar Baithak';
@@ -112,14 +149,14 @@ exports.getUserAttendance = async (req, res) => {
     }
       
     // Map to extract just this user's status for each meeting
-    const userAttendanceHistory = attendances.map(att => {
-      const userRecord = att.records.find(r => r.user.toString() === userId.toString());
+    const userAttendanceHistory = validAttendances.map(att => {
+      const userRecord = att.records.find(r => r.user && r.user.toString() === userId.toString());
       return {
         meetingId: att.meeting._id,
-        meetingTitle: att.meeting ? (att.meeting.displayTitle || att.meeting.title || 'Nagar Baithak') : 'Meeting',
-        date: att.meeting?.date,
-        time: att.meeting?.time,
-        meetingStatus: att.meeting?.status || 'pending',
+        meetingTitle: att.meeting.displayTitle || att.meeting.title || 'Nagar Baithak',
+        date: att.meeting.date,
+        time: att.meeting.time,
+        meetingStatus: att.meeting.status || 'pending',
         status: userRecord ? userRecord.status : 'absent'
       };
     });

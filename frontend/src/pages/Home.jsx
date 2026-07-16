@@ -12,6 +12,10 @@ const Home = () => {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const userRole = localStorage.getItem('userRole');
+  const isLeader = userRole === 'karyvah' || userRole === 'mukhya_shikshak';
+
+
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
@@ -89,9 +93,15 @@ const Home = () => {
           </p>
           
           <div className="grid grid-cols-2 gap-4 items-center w-full max-w-[320px] mx-auto">
-             <Link to="/join" className="w-full bg-white text-[#e65c00] text-center py-3.5 rounded-2xl font-bold shadow-md hover:shadow-lg active:scale-[0.98] transition-all text-[15px]">
-               Join RSS
-             </Link>
+             {isLeader ? (
+               <Link to="/shakha-dashboard" className="w-full bg-white text-[#e65c00] text-center py-3.5 rounded-2xl font-bold shadow-md hover:shadow-lg active:scale-[0.98] transition-all text-[15px] flex items-center justify-center">
+                 Leader Dashboard
+               </Link>
+             ) : (
+               <Link to="/join" className="w-full bg-white text-[#e65c00] text-center py-3.5 rounded-2xl font-bold shadow-md hover:shadow-lg active:scale-[0.98] transition-all text-[15px]">
+                 Join RSS
+               </Link>
+             )}
              <Link to="/shakhas" className="w-full bg-transparent border-[1.5px] border-white/70 text-white text-center py-3.5 rounded-2xl font-bold active:scale-[0.98] transition-all text-[15px] flex items-center justify-center hover:bg-white/10">
                View All Shakhas
              </Link>

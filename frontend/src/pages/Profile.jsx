@@ -20,6 +20,7 @@ const Profile = () => {
   const [profile, setProfile] = useState({ name: '', email: '', role: '', profilePhoto: null });
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   // UI State
   const [updating, setUpdating] = useState(false);
@@ -37,20 +38,35 @@ const Profile = () => {
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    let profileLoaded = false;
+
     try {
-      const [profileRes, attendanceRes] = await Promise.all([
-        api.get('/users/me'),
-        api.get('/attendance/my-attendance')
-      ]);
+      const profileRes = await api.get('/users/me');
       setProfile(profileRes.data);
       setName(profileRes.data.name || '');
       setProfilePhoto(profileRes.data.profilePhoto || null);
-      setAttendance(Array.isArray(attendanceRes.data) ? attendanceRes.data : []);
-    } catch (error) {
-      toast.error('Failed to load profile data');
-    } finally {
-      setLoading(false);
+      profileLoaded = true;
+    } catch (err) {
+      console.error('Failed to load profile data:', err);
+      if (err.response?.status !== 401) {
+        setError('Failed to load profile data. Please check your connection and try again.');
+        toast.error('Failed to load profile data');
+      }
     }
+
+    if (profileLoaded) {
+      try {
+        const attendanceRes = await api.get('/attendance/my-attendance');
+        setAttendance(Array.isArray(attendanceRes.data) ? attendanceRes.data : []);
+      } catch (err) {
+        console.error('Failed to load attendance data for profile:', err);
+        setAttendance([]);
+      }
+    }
+
+    setLoading(false);
   };
 
   const handlePhotoClick = () => {
@@ -137,7 +153,9 @@ const Profile = () => {
   const executeLogout = () => {
     localStorage.removeItem('userToken');
     localStorage.removeItem('adminToken');
-    navigate('/signup');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userOnboarded');
+    navigate('/login');
   };
 
   // Attendance Calculations
@@ -151,18 +169,40 @@ const Profile = () => {
     return <div className="text-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#e65c00] mx-auto"></div></div>;
   }
 
+  if (error) {
+    return (
+      <div className="bg-[#fcfbf9] min-h-screen pt-20 font-sans text-center">
+        <div className="max-w-md mx-auto px-4">
+          <div className="bg-white rounded-[32px] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100 space-y-6">
+            <div className="w-16 h-16 bg-red-50 rounded-[20px] flex justify-center items-center mx-auto border border-red-100">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Failed to Load Profile</h2>
+            <p className="text-gray-500 text-sm">{error}</p>
+            <button 
+              onClick={fetchData}
+              className="w-full bg-[#e65c00] hover:bg-[#cc5200] text-white py-3.5 rounded-2xl font-bold shadow-[0_4px_15px_rgba(230,92,0,0.3)] active:scale-95 transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Get Badge Color based on Role
   const getRoleBadge = (role) => {
     switch(role) {
       case 'admin': return 'bg-indigo-100 text-indigo-700';
-      case 'karyavah': return 'bg-purple-100 text-purple-700';
+      case 'karyvah': return 'bg-purple-100 text-purple-700';
       case 'mukhya_shikshak': return 'bg-[#ffefe3] text-[#e65c00]';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
 
   const displayRole = profile.role === 'admin' ? 'Administrator' : 
-                      profile.role === 'karyavah' ? 'Karyavah' : 
+                      profile.role === 'karyvah' ? 'Karyavah' : 
                       profile.role === 'mukhya_shikshak' ? 'Mukhya Shikshak' : 'Member';
 
   return (

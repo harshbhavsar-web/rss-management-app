@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { registerUser, verifyOTP, loginUser, resendOTP, forgotPassword, resetPassword, getUserProfile, updateUserProfile, onboardUser, getAllUsers, updateUserAdmin } = require('../controllers/userController');
-const { protect, adminOnly } = require('../middleware/authMiddleware');
+const { protect, adminOnly, authorize } = require('../middleware/authMiddleware');
 
 router.post('/register', registerUser);
 router.post('/verify-otp', verifyOTP);
@@ -16,8 +16,8 @@ router.put('/update', protect, updateUserProfile);
 router.put('/onboard', protect, onboardUser);
 
 // Admin routes
-router.get('/', protect, adminOnly, getAllUsers);
-router.get('/all', protect, adminOnly, getAllUsers);
-router.put('/:id', protect, adminOnly, updateUserAdmin);
+router.get('/', protect, authorize('admin', 'karyvah', 'mukhya_shikshak'), getAllUsers);
+router.get('/all', protect, authorize('admin', 'karyvah', 'mukhya_shikshak'), getAllUsers);
+router.put('/:id', protect, authorize('admin'), updateUserAdmin);
 
 module.exports = router;

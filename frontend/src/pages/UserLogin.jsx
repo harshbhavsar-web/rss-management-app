@@ -21,16 +21,23 @@ const UserLogin = () => {
     setLoading(true);
     try {
       const res = await api.post('/users/login', credentials);
-      localStorage.setItem('userToken', res.data.token); // Store standard user token
-      
       const { user } = res.data;
+
+      localStorage.setItem('userToken', res.data.token);
+      localStorage.setItem('userRole', user.role);
+      
       const isOnboarded = user.role === 'admin' || !!user.shakha || !!user.hasJoinRequest;
       localStorage.setItem('userOnboarded', isOnboarded.toString());
-      localStorage.setItem('userRole', user.role);
+
+      if (user.role === 'admin') {
+        localStorage.setItem('adminToken', res.data.token);
+      }
 
       toast.success('Login Successful');
       
-      if (isOnboarded) {
+      if (user.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (isOnboarded) {
         navigate('/home');
       } else {
         navigate('/onboarding');

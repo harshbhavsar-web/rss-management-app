@@ -9,18 +9,23 @@ const Attendance = () => {
   const { t } = useTranslation();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchAttendance();
   }, []);
 
   const fetchAttendance = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const { data } = await api.get('/attendance/my-attendance');
       setHistory(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load attendance history:', error);
-      toast.error('Failed to load attendance history');
+      if (error.response?.status !== 401) {
+        setError('Failed to load attendance history. Please check your connection and try again.');
+      }
       setHistory([]);
     } finally {
       setLoading(false);
@@ -38,6 +43,24 @@ const Attendance = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-saffron-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto p-4 space-y-6 text-center">
+        <h2 className="text-2xl font-bold text-gray-900 px-1">My Attendance</h2>
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 shadow-sm flex flex-col items-center">
+          <XCircle className="w-12 h-12 text-red-500 mb-3" />
+          <p className="text-red-700 font-semibold mb-4">{error}</p>
+          <button 
+            onClick={fetchAttendance}
+            className="w-full bg-saffron-600 hover:bg-saffron-700 text-white py-3 rounded-xl font-bold shadow active:scale-95 transition-all"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
