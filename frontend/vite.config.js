@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Disable service worker in dev so stale caches never block live code changes
+      devOptions: {
+        enabled: false,
+      },
       includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'RSS Management',
@@ -40,3 +44,4 @@ export default defineConfig({
     host: true, // Listens on all local IPs
   }
 })
+
