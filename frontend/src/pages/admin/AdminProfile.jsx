@@ -32,7 +32,7 @@ const AdminProfile = () => {
           localStorage.removeItem('adminToken');
           localStorage.removeItem('userRole');
           localStorage.removeItem('userOnboarded');
-          navigate('/login');
+          navigate('/');
         } else {
           setError('Failed to load admin profile data. Please check your connection.');
           toast.error('Failed to load profile');
@@ -66,7 +66,7 @@ const AdminProfile = () => {
       localStorage.removeItem('adminToken');
       localStorage.removeItem('userRole');
       localStorage.removeItem('userOnboarded');
-      navigate('/login');
+      navigate('/');
     }
   };
 

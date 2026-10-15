@@ -7,8 +7,8 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation();
   
   if (!token) {
-    // Redirect them to the /login page if not logged in
-    return <Navigate to="/login" replace />;
+    // Redirect to Welcome Page if not logged in
+    return <Navigate to="/" replace />;
   }
 
   // Enforce onboarding flow for users

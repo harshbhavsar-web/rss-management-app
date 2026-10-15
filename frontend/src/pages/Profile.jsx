@@ -155,7 +155,7 @@ const Profile = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userOnboarded');
-    navigate('/login');
+    navigate('/');
   };
 
   // Attendance Calculations

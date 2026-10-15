@@ -9,7 +9,7 @@ const AdminLayout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userOnboarded');
-    navigate('/login');
+    navigate('/');
   };
 
   return (

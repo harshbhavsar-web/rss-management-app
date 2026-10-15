@@ -30,7 +30,7 @@ import ShakhaDashboard from './pages/ShakhaDashboard';
 // A wrapper component to handle conditional layout visibility
 const AppLayout = () => {
   const location = useLocation();
-  const hideLayoutPaths = ['/', '/login', '/signup', '/verify', '/admin/login', '/forgot-password', '/reset-password'];
+  const hideLayoutPaths = ['/', '/login', '/signup', '/verify', '/admin-login', '/admin/login', '/forgot-password', '/reset-password'];
   const isAdminRoute = location.pathname.startsWith('/admin');
   const shouldHideLayout = hideLayoutPaths.includes(location.pathname) || isAdminRoute;
   const isHome = location.pathname === '/home';
@@ -62,7 +62,8 @@ const AppLayout = () => {
           <Route path="/shakha-dashboard" element={<ProtectedRoute><ShakhaDashboard /></ProtectedRoute>} />
           
           {/* Admin Routes */}
-          <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+          <Route path="/admin-login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/admin/login" element={<Navigate to="/admin-login" replace />} />
           <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="dashboard" element={<Dashboard />} />

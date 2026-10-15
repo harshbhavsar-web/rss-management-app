@@ -67,7 +67,7 @@ const Dashboard = () => {
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) {
-      navigate('/login');
+      navigate('/');
       return;
     }
     fetchData();
@@ -116,7 +116,7 @@ const Dashboard = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userOnboarded');
-    navigate('/login');
+    navigate('/');
   };
 
   // CRUD Operations
