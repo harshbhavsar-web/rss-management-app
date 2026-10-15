@@ -1,21 +1,17 @@
 import { NavLink } from 'react-router-dom';
-import { Home, MapPin, Calendar, CheckSquare, ClipboardCheck, LayoutDashboard } from 'lucide-react';
+import { Home, MapPin, Calendar, CheckSquare, ClipboardCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const BottomNav = () => {
-  const role = localStorage.getItem('userRole');
-  const isLeader = role === 'karyvah' || role === 'mukhya_shikshak';
 
   const navItems = [
     { to: '/home', icon: Home, label: 'Home' },
-    ...(isLeader 
-      ? [{ to: '/shakha-dashboard', icon: LayoutDashboard, label: 'Shakha' }]
-      : [{ to: '/shakhas', icon: MapPin, label: 'Shakhas' }]
-    ),
+    { to: '/shakhas', icon: MapPin, label: 'Shakhas' },
     { to: '/meetings', icon: Calendar, label: 'Meetings' },
     { to: '/events', icon: CheckSquare, label: 'Events' },
     { to: '/attendance', icon: ClipboardCheck, label: 'Attend' },
   ];
+
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 w-full bg-white shadow-[0_-5px_25px_rgba(0,0,0,0.08)] border-t border-gray-100 z-50">
