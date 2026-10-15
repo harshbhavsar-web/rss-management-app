@@ -6,6 +6,11 @@ const sendSMS = require('../utils/sendSMS');
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+// In-memory OTP attempt tracker (resets on server restart)
+const otpAttempts = {};
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
 exports.registerUser = async (req, res) => {
   console.log('[registerUser] Route hit');
   const { name, identifier, password } = req.body;
@@ -54,25 +59,40 @@ exports.registerUser = async (req, res) => {
     }
     console.log(`[registerUser] OTP saved to database for user: ${user._id}`);
 
-    // Send OTP asynchronously
-    let sent = true; // Optimistic success
+    // Send OTP — await to surface real delivery failures
+    let sent = false;
     if (otpType === 'email') {
-      console.log('[registerUser] Email send attempt initiated in background');
-      sendEmail({
+      console.log('[registerUser] Sending OTP email...');
+      sent = await sendEmail({
         email: user.email,
         subject: 'RSS Sardar Nagar - Verification OTP',
-        message: `Your OTP for verification is: ${otp}. It is valid for 10 minutes.`,
-      }).catch(err => console.error('Background email error:', err.message));
+        message: `Your OTP for RSS Sardar Nagar verification is: ${otp}\n\nThis OTP is valid for 10 minutes. Do not share it with anyone.`,
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#b45309">RSS Sardar Nagar</h2>
+          <p>Your email verification OTP is:</p>
+          <h1 style="letter-spacing:8px;color:#1f2937;font-size:40px">${otp}</h1>
+          <p style="color:#6b7280">This OTP expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
+        </div>`,
+      });
     } else {
-      console.log('[registerUser] SMS send attempt initiated in background');
+      console.log('[registerUser] Sending OTP SMS...');
       const smsMessage = `Welcome to RSS! Your mobile verification OTP is ${otp}. Valid for 10 minutes.`;
-      sendSMS(user.phone, smsMessage).catch(err => console.error('Background SMS error:', err.message));
+      sent = await sendSMS(user.phone, smsMessage).catch(() => false);
+    }
+
+    if (!sent) {
+      console.error(`[registerUser] Failed to deliver OTP to ${otpType}: ${otpType === 'email' ? user.email : user.phone}`);
+      return res.status(500).json({
+        message: `Failed to send OTP to your ${otpType}. Please check the address and try again.`,
+        userId: user._id,
+        sent: false
+      });
     }
 
     res.status(201).json({
-      message: `Registration initiated. OTP sent successfully to ${otpType}.`,
+      message: `Registration initiated. OTP sent successfully to your ${otpType}.`,
       userId: user._id,
-      sent
+      sent: true
     });
 
   } catch (error) {
@@ -91,31 +111,52 @@ exports.resendOTP = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (user.isVerified) {
-      return res.status(400).json({ message: 'User is already verified' });
+      return res.status(400).json({ message: 'User is already verified.' });
+    }
+
+    // Rate limit: prevent resend if OTP was sent less than 60 seconds ago
+    if (user.otpExpiry) {
+      const otpAgeMs = (user.otpExpiry.getTime() - 10 * 60 * 1000) - Date.now() + 10 * 60 * 1000;
+      // otpExpiry is set to now + 10min, so (otpExpiry - 10min) is when it was generated
+      const generatedAt = user.otpExpiry.getTime() - 10 * 60 * 1000;
+      const secondsSinceGenerated = (Date.now() - generatedAt) / 1000;
+      if (secondsSinceGenerated < 60) {
+        const waitSeconds = Math.ceil(60 - secondsSinceGenerated);
+        return res.status(429).json({ message: `Please wait ${waitSeconds} seconds before requesting a new OTP.` });
+      }
     }
 
     const otp = generateOTP();
     console.log('[resendOTP] OTP generated successfully');
     user.otp = otp;
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
+    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
     console.log(`[resendOTP] OTP saved to database for user: ${user._id}`);
 
+    let sent = false;
     if (user.otpType === 'email') {
-      console.log('[resendOTP] Email send attempt initiated in background');
-      sendEmail({
+      console.log('[resendOTP] Sending OTP email...');
+      sent = await sendEmail({
         email: user.email,
-        subject: 'RSS Sardar Nagar - New OTP',
-        message: `Your new OTP for verification is: ${otp}.`,
-      }).catch(err => console.error('Background email error:', err.message));
+        subject: 'RSS Sardar Nagar - New Verification OTP',
+        message: `Your new OTP for RSS Sardar Nagar verification is: ${otp}\n\nThis OTP is valid for 10 minutes. Do not share it with anyone.`,
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#b45309">RSS Sardar Nagar</h2>
+          <p>Your new email verification OTP is:</p>
+          <h1 style="letter-spacing:8px;color:#1f2937;font-size:40px">${otp}</h1>
+          <p style="color:#6b7280">This OTP expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
+        </div>`,
+      });
     } else {
-      console.log('[resendOTP] SMS send attempt initiated in background');
-      sendSMS(user.phone, `New OTP for RSS verification is ${otp}.`).catch(err => console.error('Background SMS error:', err.message));
+      console.log('[resendOTP] Sending OTP SMS...');
+      sent = await sendSMS(user.phone, `New OTP for RSS verification is ${otp}. Valid 10 mins.`).catch(() => false);
     }
 
-    res.json({
-      message: 'New OTP sent successfully.'
-    });
+    if (!sent) {
+      return res.status(500).json({ message: `Failed to resend OTP. Please try again later.` });
+    }
+
+    res.json({ message: 'New OTP sent successfully.' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -124,20 +165,50 @@ exports.resendOTP = async (req, res) => {
 exports.verifyOTP = async (req, res) => {
   const { userId, otp } = req.body;
   try {
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    if (user.isVerified) return res.status(400).json({ message: 'User already verified' });
-    if (user.otpExpiry < new Date()) return res.status(400).json({ message: 'OTP has expired' });
-
-    if (user.otp !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
+    if (!userId || !otp) {
+      return res.status(400).json({ message: 'User ID and OTP are required.' });
     }
 
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    if (user.isVerified) return res.status(400).json({ message: 'User is already verified.' });
+
+    // Check OTP existence
+    if (!user.otp) {
+      return res.status(400).json({ message: 'No OTP found. Please request a new one.' });
+    }
+
+    // Check expiry
+    if (!user.otpExpiry || user.otpExpiry < new Date()) {
+      return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+    }
+
+    // Track failed attempts (in-memory)
+    const key = userId.toString();
+    if (!otpAttempts[key]) otpAttempts[key] = { count: 0, resetAt: Date.now() + OTP_WINDOW_MS };
+    if (Date.now() > otpAttempts[key].resetAt) otpAttempts[key] = { count: 0, resetAt: Date.now() + OTP_WINDOW_MS };
+
+    if (otpAttempts[key].count >= OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({ message: 'Too many incorrect OTP attempts. Please request a new OTP.' });
+    }
+
+    if (user.otp !== otp) {
+      otpAttempts[key].count += 1;
+      const remaining = OTP_MAX_ATTEMPTS - otpAttempts[key].count;
+      return res.status(400).json({ message: `Invalid OTP. ${remaining} attempt(s) remaining.` });
+    }
+
+    // OTP is correct — mark verified and clear OTP fields to prevent reuse
     user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpiry = undefined;
     await user.save();
 
-    res.json({ message: 'Verified successfully', isVerified: user.isVerified });
+    // Clean up attempt tracker
+    delete otpAttempts[key];
+
+    res.json({ message: 'Verified successfully.', isVerified: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -201,12 +272,23 @@ exports.forgotPassword = async (req, res) => {
     await user.save();
     console.log(`[forgotPassword] OTP saved to database for user: ${user._id}`);
 
-    console.log('[forgotPassword] Email send attempt initiated in background');
-    sendEmail({
+    console.log('[forgotPassword] Sending password reset OTP email...');
+    const sent = await sendEmail({
       email: user.email,
       subject: 'RSS Sardar Nagar - Password Reset OTP',
-      message: `Your OTP to reset password is: ${otp}. It is valid for 10 minutes.`,
-    }).catch(err => console.error('Background email error:', err.message));
+      message: `Your OTP to reset password is: ${otp}\n\nIt is valid for 10 minutes. Do not share it with anyone.`,
+      html: `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2 style="color:#b45309">RSS Sardar Nagar</h2>
+        <p>Your password reset OTP is:</p>
+        <h1 style="letter-spacing:8px;color:#1f2937;font-size:40px">${otp}</h1>
+        <p style="color:#6b7280">This OTP expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
+        <p style="color:#9ca3af;font-size:12px">If you did not request this, please ignore this email.</p>
+      </div>`,
+    });
+
+    if (!sent) {
+      return res.status(500).json({ message: 'Failed to send password reset OTP. Please try again.' });
+    }
 
     res.json({ message: 'Password reset OTP sent to your email.' });
   } catch (error) {
@@ -244,6 +326,7 @@ exports.resetPassword = async (req, res) => {
     user.password = hashedPassword;
     user.resetOtp = undefined;
     user.resetOtpExpiry = undefined;
+    user.isVerified = true; // Ensure user is verified after password reset
     await user.save();
 
     res.json({ message: 'Password reset successful. You can now log in.' });
